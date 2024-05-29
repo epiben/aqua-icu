@@ -50,3 +50,10 @@ rsconnect/
 
 # Mac OS-related
 .DS_Store
+
+# Targets files
+_targets/
+.future/
+
+# Legacy stuff
+legacy/
