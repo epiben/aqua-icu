@@ -4,6 +4,7 @@ library(targets)
 library(hrqolr)
 library(dplyr)
 library(tidyr)
+library(stringr)
 
 scenarios <- expand_grid(
 	n_patients_per_arm = c(100L, 500L, 1000L, 2000L),
@@ -15,25 +16,15 @@ scenarios <- expand_grid(
 	mortality_trajectory_shape = c("exp_decay", "constant", "linear", "reflected_exp_decay")
 ) 
 
-scenarios <- scenarios[1:4, ]
-
-
-
-# # For benchmarking of memory requirement
-# scenarios <- data.frame(
-# 	n_patients_per_arm = 2000L,
-# 	relative_mortality_reduction = 0.10,
-# 	acceleration_hrqol = 0.1,
-# 	relative_improvement_final_hrqol = 0.2,
-# 	mortality_dampening = 0.0,
-# 	prop_mortality_benefitters = 0.15,
-# 	mortality_trajectory_shape = "exp_decay"
-# )
+scenarios <- scenarios[1:100, ]
 
 # Add metadata to the scenarios data frame
 scenarios$scenario_id <- seq_len(nrow(scenarios))
 scenarios$scenario_name <- lapply(
-	paste0("scenario__", apply(scenarios, 1, paste, collapse = "__")), 
+	str_remove_all( # needed to address whitespace padding that happens to scenario_id
+		paste0("scenario__", apply(scenarios, 1, paste, collapse = "__")), 
+		" "
+	),
 	as.symbol
 ) # see Examples in ?tar_eval
 scenarios$scenario_priority <- with(scenarios, 1 - scenario_id/max(scenario_id))
@@ -78,15 +69,12 @@ worker_fun <- function(
 
 	sims <- simulate_trials(
 		scenario,
-		n_trials = 100,
-		# n_trials = 1e5,
+		n_trials = 1e5,
 		n_patients_ground_truth = 1e6,
 		n_example_trajectories_per_arm = 0,
 		max_batch_size = 10e6,
-		verbose = TRUE
+		verbose = FALSE
 	)
-
-	print(sims$resource_use)
 
 	if (scenario_id %% 25 == 0) {
 		pushover_silent(
@@ -112,7 +100,7 @@ plan(
     template = "slurm.tmpl",
     resources = list(
         walltime = 60, # minutes
-        memory = 1024 * 20, # MBs
+        memory = 1024 * 6, # MBs
         ncpus = 1,
 		partition = "standard"
     )
@@ -122,7 +110,8 @@ tar_option_set(
     packages = c("hrqolr", "pushoverr", "data.table"),
     format = "qs", 
     repository = "local",
-    memory = "transient"
+    memory = "transient",
+	error = "null"
 )
 
 tar_config_set(
@@ -157,6 +146,6 @@ figure1 <- tar_combine(
 )
 
 list(
-	simulations,
-	figure1
+	simulations#,
+	# figure1
 )
